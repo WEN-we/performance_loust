@@ -405,10 +405,49 @@ class SettingsPage(QWidget):
         """
         self._theme = theme
         if theme == "dark":
-            self._title_label.setStyleSheet(
-                "font-size: 22px; font-weight: 700; color: #e0e0f0;"
-            )
+            title_color = "#e0e0f0"
+            label_color = "#c0c0d0"
+            group_style = """
+                QGroupBox {
+                    color: #e0e0f0;
+                    border: 1px solid #444;
+                    border-radius: 6px;
+                    margin-top: 12px;
+                    padding-top: 16px;
+                    font-weight: bold;
+                }
+                QGroupBox::title {
+                    subcontrol-origin: margin;
+                    left: 12px;
+                    padding: 0 6px;
+                    color: #e0e0f0;
+                }
+                QLabel { color: #c0c0d0; }
+            """
         else:
-            self._title_label.setStyleSheet(
-                "font-size: 22px; font-weight: 700; color: #1a1a2e;"
-            )
+            title_color = "#1a1a2e"
+            label_color = "#333333"
+            group_style = """
+                QGroupBox {
+                    color: #1a1a2e;
+                    border: 1px solid #ddd;
+                    border-radius: 6px;
+                    margin-top: 12px;
+                    padding-top: 16px;
+                    font-weight: bold;
+                }
+                QGroupBox::title {
+                    subcontrol-origin: margin;
+                    left: 12px;
+                    padding: 0 6px;
+                    color: #1a1a2e;
+                }
+                QLabel { color: #333333; }
+            """
+
+        self._title_label.setStyleSheet(
+            f"font-size: 22px; font-weight: 700; color: {title_color};"
+        )
+
+        for group_box in self.findChildren(QGroupBox):
+            group_box.setStyleSheet(group_style)

@@ -365,6 +365,45 @@ class CreateTaskPage(QWidget):
         else:
             layout.addLayout(row_layout)
 
+    def _create_form_row_with_container(
+        self,
+        label_text: str,
+        widget: QWidget,
+        layout: QVBoxLayout | QGridLayout,
+        row: int = -1,
+        col: int = 0,
+    ) -> QWidget:
+        """创建表单行（标签 + 控件），返回可整体隐藏的容器Widget
+
+        Args:
+            label_text: 标签文本
+            widget: 表单控件
+            layout: 目标布局
+            row: 网格行号（QGridLayout 时使用）
+            col: 网格列号
+
+        Returns:
+            包含标签和控件的容器QWidget
+        """
+        container = QWidget()
+        container_layout = QHBoxLayout(container)
+        container_layout.setContentsMargins(0, 0, 0, 0)
+        container_layout.setSpacing(12)
+
+        label = QLabel(label_text)
+        label.setFixedWidth(100)
+        label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+
+        container_layout.addWidget(label)
+        container_layout.addWidget(widget, 1)
+
+        if isinstance(layout, QGridLayout):
+            layout.addWidget(container, row, col, 1, 2)
+        else:
+            layout.addWidget(container)
+
+        return container
+
     def _setup_basic_info_section(self) -> None:
         """创建基本信息区域"""
         group, layout = self._create_group_box("基本信息")
@@ -430,18 +469,18 @@ class CreateTaskPage(QWidget):
         self._token_edit = QLineEdit()
         self._token_edit.setPlaceholderText("请输入 Bearer Token")
         self._token_edit.setVisible(False)
-        self._create_form_row("Token:", self._token_edit, layout)
+        self._token_row = self._create_form_row_with_container("Token:", self._token_edit, layout)
 
         self._username_edit = QLineEdit()
         self._username_edit.setPlaceholderText("请输入用户名")
         self._username_edit.setVisible(False)
-        self._create_form_row("用户名:", self._username_edit, layout)
+        self._username_row = self._create_form_row_with_container("用户名:", self._username_edit, layout)
 
         self._password_edit = QLineEdit()
         self._password_edit.setPlaceholderText("请输入密码")
         self._password_edit.setEchoMode(QLineEdit.EchoMode.Password)
         self._password_edit.setVisible(False)
-        self._create_form_row("密码:", self._password_edit, layout)
+        self._password_row = self._create_form_row_with_container("密码:", self._password_edit, layout)
 
         self._form_layout.addWidget(group)
 
@@ -454,9 +493,9 @@ class CreateTaskPage(QWidget):
         is_bearer = index == 1
         is_basic = index == 2
 
-        self._token_edit.setVisible(is_bearer)
-        self._username_edit.setVisible(is_basic)
-        self._password_edit.setVisible(is_basic)
+        self._token_row.setVisible(is_bearer)
+        self._username_row.setVisible(is_basic)
+        self._password_row.setVisible(is_basic)
 
     def _setup_headers_section(self) -> None:
         """创建请求头区域"""
@@ -511,7 +550,9 @@ class CreateTaskPage(QWidget):
         self._form_data_section.setVisible(False)
         layout.addWidget(self._form_data_section)
 
-        file_layout = QHBoxLayout()
+        self._file_row = QWidget()
+        file_layout = QHBoxLayout(self._file_row)
+        file_layout.setContentsMargins(0, 0, 0, 0)
         file_layout.setSpacing(12)
 
         file_label = QLabel("文件路径:")
@@ -521,18 +562,16 @@ class CreateTaskPage(QWidget):
 
         self._file_path_edit = QLineEdit()
         self._file_path_edit.setPlaceholderText("请选择要上传的文件路径")
-        self._file_path_edit.setVisible(False)
         file_layout.addWidget(self._file_path_edit, 1)
 
         self._file_browse_btn = QPushButton("浏览...")
         self._file_browse_btn.setProperty("secondary", True)
         self._file_browse_btn.setFixedWidth(80)
-        self._file_browse_btn.setVisible(False)
         self._file_browse_btn.clicked.connect(self._browse_file)
         file_layout.addWidget(self._file_browse_btn)
 
-        self._file_row_layout = file_layout
-        layout.addLayout(file_layout)
+        self._file_row.setVisible(False)
+        layout.addWidget(self._file_row)
 
         self._form_layout.addWidget(group)
 
@@ -548,8 +587,7 @@ class CreateTaskPage(QWidget):
 
         self._json_editor.setVisible(is_json)
         self._form_data_section.setVisible(is_form)
-        self._file_path_edit.setVisible(is_file)
-        self._file_browse_btn.setVisible(is_file)
+        self._file_row.setVisible(is_file)
 
     def _browse_file(self) -> None:
         """打开文件选择对话框，选择上传文件"""
@@ -803,8 +841,8 @@ class CreateTaskPage(QWidget):
         run_time = self._run_time_edit.text().strip()
         if run_time:
             import re
-            if not re.match(r"^\d+[smh]?$", run_time.lower()):
-                errors.append("持续时间格式错误，应为如 10s/5m/1h 的格式")
+            if not re.match(r"^(\d+[smh])+$", run_time.lower()):
+                errors.append("持续时间格式错误，应为如 10s/5m/1h/1h30m 的格式")
 
         if self._body_type_combo.currentIndex() == 1:
             json_text = self._json_editor.toPlainText().strip()

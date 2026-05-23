@@ -242,7 +242,7 @@ class NavigationBar(QWidget):
         return self._current_index
 
     def set_current_index(self, index: int) -> None:
-        if 0 <= index < len(self._buttons):
+        if 0 <= index < len(self._buttons) and self._current_index != index:
             self._buttons[index].click()
 
     def set_theme(self, theme: str) -> None:

@@ -476,7 +476,8 @@ class ExecuteTaskPage(QWidget):
             self._refresh_queue_status()
 
         except Exception:
-            pass
+            from utils.logger import get_logger
+            get_logger("execute_task_page").exception("刷新运行状态失败")
 
     def _refresh_queue_status(self) -> None:
         """刷新队列执行状态"""
@@ -509,7 +510,8 @@ class ExecuteTaskPage(QWidget):
                 self._queue_label.setText("队列：空")
 
         except Exception:
-            pass
+            from utils.logger import get_logger
+            get_logger("execute_task_page").exception("刷新队列状态失败")
 
     def _on_task_selected(self, row: int) -> None:
         """任务列表选中行变更回调

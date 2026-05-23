@@ -321,7 +321,7 @@ class DatabaseManager:
         params          TEXT    DEFAULT '{}',
         csv_path        TEXT    DEFAULT '',
         users           INTEGER DEFAULT 10,
-        spawn_rate      INTEGER DEFAULT 1,
+        spawn_rate      REAL    DEFAULT 1.0,
         run_time        TEXT    DEFAULT '5m',
         timeout         INTEGER DEFAULT 30,
         retry_count     INTEGER DEFAULT 0,
@@ -511,9 +511,19 @@ class DatabaseManager:
             if field in task_data and not isinstance(task_data[field], str):
                 task_data[field] = json.dumps(task_data[field], ensure_ascii=False)
 
+        valid_columns = {
+            "name", "type", "method", "url", "headers", "cookies",
+            "body", "body_type", "params", "token", "auth_type",
+            "users", "spawn_rate", "run_time", "timeout", "retry_count",
+            "csv_path", "status", "updated_at",
+        }
+
         set_clauses = []
         values: list[Any] = []
         for key, value in task_data.items():
+            if key not in valid_columns:
+                logger.warning(f"update_task: 忽略无效列名 '{key}'")
+                continue
             set_clauses.append(f"{key} = ?")
             values.append(value)
 
@@ -737,9 +747,20 @@ class DatabaseManager:
                 result_data["stats_json"], ensure_ascii=False
             )
 
+        valid_columns = {
+            "task_id", "status", "start_time", "end_time",
+            "total_requests", "success_count", "fail_count",
+            "avg_response_time", "max_response_time", "min_response_time",
+            "p95_response_time", "qps", "tps", "rps", "fail_rate",
+            "current_users", "stats_json",
+        }
+
         set_clauses = []
         values: list[Any] = []
         for key, value in result_data.items():
+            if key not in valid_columns:
+                logger.warning(f"update_task_result: 忽略无效列名 '{key}'")
+                continue
             set_clauses.append(f"{key} = ?")
             values.append(value)
 
@@ -943,9 +964,21 @@ class DatabaseManager:
                 history_data["stats_json"], ensure_ascii=False
             )
 
+        valid_columns = {
+            "task_id", "task_name", "task_type", "method", "url",
+            "start_time", "end_time", "duration",
+            "total_requests", "success_count", "fail_count",
+            "avg_response_time", "max_response_time", "min_response_time",
+            "p95_response_time", "qps", "tps", "rps", "fail_rate",
+            "users", "spawn_rate", "run_time", "stats_json",
+        }
+
         set_clauses = []
         values: list[Any] = []
         for key, value in history_data.items():
+            if key not in valid_columns:
+                logger.warning(f"update_history: 忽略无效列名 '{key}'")
+                continue
             set_clauses.append(f"{key} = ?")
             values.append(value)
 
@@ -1217,9 +1250,17 @@ class DatabaseManager:
         if not node_data:
             return False
 
+        valid_columns = {
+            "name", "host", "port", "role", "status",
+            "worker_count", "master_host", "master_port",
+        }
+
         set_clauses = []
         values: list[Any] = []
         for key, value in node_data.items():
+            if key not in valid_columns:
+                logger.warning(f"update_node: 忽略无效列名 '{key}'")
+                continue
             set_clauses.append(f"{key} = ?")
             values.append(value)
 

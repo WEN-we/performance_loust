@@ -474,10 +474,7 @@ class HistoryPage(QWidget):
         if reply != QMessageBox.StandardButton.Yes:
             return
 
-        count = self._db.get_history_count()
-        all_records = self._db.get_all_history(limit=count, offset=0)
-        for record in all_records:
-            self._db.delete_history(record.get("id", 0))
+        self._db.execute_update("DELETE FROM history", ())
 
         self._db.vacuum_database()
         QMessageBox.information(self, "提示", "已清空所有历史记录")

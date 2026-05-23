@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
     QFrame,
     QGridLayout,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QMessageBox,
     QPushButton,
@@ -311,6 +312,7 @@ class MonitorPage(QWidget):
 
         self._monitoring_task_id: int | None = None
         self._elapsed_seconds: float = 0.0
+        self._monitor_start_time: float | None = None
 
         self._setup_ui()
         self._setup_timer()
@@ -555,7 +557,6 @@ class MonitorPage(QWidget):
                 return
 
             items = [f"ID:{t.get('id')} - {t.get('name', '')}" for t in all_tasks]
-            from PySide6.QtWidgets import QInputDialog
             item, ok = QInputDialog.getItem(
                 self, "选择监控任务", "没有正在运行的任务，可选择任意任务：", items, 0, False
             )
@@ -565,7 +566,6 @@ class MonitorPage(QWidget):
             return
 
         items = [f"ID:{t.get('id')} - {t.get('name', '')} [运行中]" for t in running_tasks]
-        from PySide6.QtWidgets import QInputDialog
         item, ok = QInputDialog.getItem(
             self, "选择监控任务", "选择要监控的运行中任务：", items, 0, False
         )
@@ -581,6 +581,7 @@ class MonitorPage(QWidget):
         """
         self._monitoring_task_id = task_id
         self._elapsed_seconds = 0.0
+        self._monitor_start_time = None
 
         task = self._db.get_task(task_id)
         if task:
@@ -609,20 +610,24 @@ class MonitorPage(QWidget):
             if not stats or not isinstance(stats, dict):
                 return
 
-            self._elapsed_seconds += 1.0
+            import time
+            now = time.monotonic()
+            if self._monitor_start_time is None:
+                self._monitor_start_time = now
+            self._elapsed_seconds = now - self._monitor_start_time
 
-            qps = stats.get("rps", 0.0)
-            tps = stats.get("rps", 0.0)
             rps = stats.get("rps", 0.0)
+            total_requests = stats.get("total_requests", 0)
+            total_failures = stats.get("total_failures", 0)
+            success_count = total_requests - total_failures
+            qps = rps
+            tps = success_count / max(stats.get("elapsed_seconds", 1), 1) if success_count > 0 else 0.0
             avg_rt = stats.get("avg_response_time", 0.0)
             max_rt = stats.get("max_response_time", 0.0)
             min_rt = stats.get("min_response_time", 0.0)
             p95_rt = stats.get("p95_response_time", 0.0)
             fail_rate = stats.get("failure_rate", 0.0)
             user_count = stats.get("user_count", 0)
-            total_requests = stats.get("total_requests", 0)
-            total_failures = stats.get("total_failures", 0)
-            success_count = total_requests - total_failures
 
             self._card_qps.set_value(f"{qps:.2f}")
             self._card_tps.set_value(f"{tps:.2f}")
@@ -658,7 +663,8 @@ class MonitorPage(QWidget):
             )
 
         except Exception:
-            pass
+            from utils.logger import get_logger
+            get_logger("monitor_page").exception("刷新监控数据失败")
 
     def _export_charts(self) -> None:
         """导出所有图表为PNG图片"""

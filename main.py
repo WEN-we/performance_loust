@@ -98,6 +98,15 @@ def main() -> int:
     db = DatabaseManager()
     logger.info("数据库初始化完成")
 
+    try:
+        db.execute_update(
+            "UPDATE task_results SET status = 'interrupted' WHERE status = 'running'",
+            (),
+        )
+        logger.info("已清理上次未正常结束的运行中任务状态")
+    except Exception as e:
+        logger.warning(f"清理运行中任务状态失败: {e}")
+
     from core.plugin_manager import PluginManager
     plugin_mgr = PluginManager()
     plugins_dir = Path(settings._get_base_dir()) / "plugins"

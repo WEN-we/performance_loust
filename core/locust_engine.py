@@ -295,11 +295,12 @@ class LocustEngine:
 
     def stop(self) -> bool:
         """停止压测并清理资源"""
-        self._ensure_locust_imported()
         with self._lock:
             if self._state in (EngineState.IDLE, EngineState.STOPPED):
                 logger.warning("引擎未在运行中，无需停止")
                 return False
+
+        self._ensure_locust_imported()
 
         self._state = EngineState.STOPPING
         self._stop_event.set()
@@ -899,6 +900,8 @@ class LocustEngine:
             "success": exception is None,
         }
         self._request_records.append(record)
+        if len(self._request_records) > 10000:
+            self._request_records = self._request_records[-5000:]
 
     def _on_test_start(self, **kwargs: Any) -> None:
         """测试开始事件回调"""

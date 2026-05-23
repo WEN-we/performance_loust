@@ -1,18 +1,4 @@
 from core.plugin_manager import PluginManager, PluginBase, HookType
-from core.locust_engine import (
-    LocustEngine,
-    EngineState,
-    EngineConfig,
-    TaskConfig,
-    substitute_variables,
-    parse_run_time,
-)
-from core.distributed_manager import (
-    DistributedManager,
-    DistributedConfig,
-    NodeState,
-    NodeInfo,
-)
 
 __all__ = [
     "PluginManager",
@@ -29,3 +15,13 @@ __all__ = [
     "NodeState",
     "NodeInfo",
 ]
+
+
+def __getattr__(name):
+    if name in ("LocustEngine", "EngineState", "EngineConfig", "TaskConfig", "substitute_variables", "parse_run_time"):
+        from core import locust_engine as _le
+        return getattr(_le, name)
+    if name in ("DistributedManager", "DistributedConfig", "NodeState", "NodeInfo"):
+        from core import distributed_manager as _dm
+        return getattr(_dm, name)
+    raise AttributeError(f"module 'core' has no attribute {name!r}")

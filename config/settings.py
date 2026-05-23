@@ -152,12 +152,12 @@ class Settings:
         self._config["locust_users"] = max(1, int(value))
 
     @property
-    def locust_spawn_rate(self) -> int:
-        return int(self._config.get("locust_spawn_rate", 1))
+    def locust_spawn_rate(self) -> float:
+        return float(self._config.get("locust_spawn_rate", 1))
 
     @locust_spawn_rate.setter
-    def locust_spawn_rate(self, value: int) -> None:
-        self._config["locust_spawn_rate"] = max(1, int(value))
+    def locust_spawn_rate(self, value: float) -> None:
+        self._config["locust_spawn_rate"] = max(0.1, float(value))
 
     @property
     def locust_run_time(self) -> str:

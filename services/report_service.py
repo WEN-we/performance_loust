@@ -124,18 +124,38 @@ class ReportService:
         pdf.set_auto_page_break(auto=True, margin=15)
         pdf.add_page()
 
-        pdf.set_font("Helvetica", "B", 20)
+        font_paths = [
+            Path("C:/Windows/Fonts/msyh.ttc"),
+            Path("C:/Windows/Fonts/simhei.ttf"),
+            Path("C:/Windows/Fonts/simsun.ttc"),
+        ]
+        chinese_font = None
+        for fp in font_paths:
+            if fp.exists():
+                chinese_font = str(fp)
+                break
+
+        if chinese_font:
+            pdf.add_font("Chinese", "", chinese_font, uni=True)
+            pdf.add_font("Chinese", "B", chinese_font, uni=True)
+            title_font = "Chinese"
+            body_font = "Chinese"
+        else:
+            title_font = "Helvetica"
+            body_font = "Helvetica"
+
+        pdf.set_font(title_font, "B", 20)
         pdf.cell(0, 15, "Performance Test Report", ln=True, align="C")
         pdf.ln(5)
 
-        pdf.set_font("Helvetica", "", 10)
+        pdf.set_font(body_font, "", 10)
         pdf.cell(0, 8, f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", ln=True, align="C")
         pdf.ln(10)
 
         task_info = report_data["task_info"]
-        pdf.set_font("Helvetica", "B", 14)
+        pdf.set_font(title_font, "B", 14)
         pdf.cell(0, 10, "Task Overview", ln=True)
-        pdf.set_font("Helvetica", "", 10)
+        pdf.set_font(body_font, "", 10)
 
         overview_items = [
             ("Task Name", str(task_info.get("name", "-"))),
@@ -153,9 +173,9 @@ class ReportService:
         pdf.ln(5)
 
         stats = report_data["stats"]
-        pdf.set_font("Helvetica", "B", 14)
+        pdf.set_font(title_font, "B", 14)
         pdf.cell(0, 10, "Statistics", ln=True)
-        pdf.set_font("Helvetica", "", 10)
+        pdf.set_font(body_font, "", 10)
 
         stats_items = [
             ("Total Requests", str(stats.get("total_requests", 0))),
@@ -177,9 +197,9 @@ class ReportService:
 
         per_method = report_data.get("per_method_stats", {})
         if per_method:
-            pdf.set_font("Helvetica", "B", 14)
+            pdf.set_font(title_font, "B", 14)
             pdf.cell(0, 10, "Per-Method Statistics", ln=True)
-            pdf.set_font("Helvetica", "B", 9)
+            pdf.set_font(title_font, "B", 9)
 
             col_widths = [45, 25, 25, 30, 30, 30]
             headers = ["Endpoint", "Requests", "Failures", "Avg(ms)", "P95(ms)", "RPS"]
@@ -187,7 +207,7 @@ class ReportService:
                 pdf.cell(col_widths[i], 7, h, border=1)
             pdf.ln()
 
-            pdf.set_font("Helvetica", "", 9)
+            pdf.set_font(body_font, "", 9)
             for endpoint, entry in per_method.items():
                 pdf.cell(col_widths[0], 7, str(endpoint)[:25], border=1)
                 pdf.cell(col_widths[1], 7, str(entry.get("num_requests", 0)), border=1)
@@ -200,9 +220,9 @@ class ReportService:
         errors = report_data.get("errors", [])
         if errors:
             pdf.ln(5)
-            pdf.set_font("Helvetica", "B", 14)
+            pdf.set_font(title_font, "B", 14)
             pdf.cell(0, 10, "Errors", ln=True)
-            pdf.set_font("Helvetica", "", 9)
+            pdf.set_font(body_font, "", 9)
             for err in errors[:20]:
                 err_text = f"{err.get('method', '')} {err.get('name', '')}: {err.get('error', '')} ({err.get('occurrences', 0)} times)"
                 pdf.multi_cell(0, 6, f"  - {err_text}")

@@ -332,11 +332,11 @@ class ExecutionService:
                 if engine:
                     engine.wait_for_complete()
 
-                self._save_final_results(task_id)
-
                 with self._lock:
-                    self._engines.pop(task_id, None)
-                    self._result_ids.pop(task_id, None)
+                    if task_id in self._engines:
+                        self._save_final_results(task_id)
+                        self._engines.pop(task_id, None)
+                        self._result_ids.pop(task_id, None)
 
                 logger.info("队列任务执行完成，ID=%d", task_id)
 
@@ -360,9 +360,10 @@ class ExecutionService:
             task_id: 任务ID
             result_id: 结果记录ID
         """
-        engine = self._engines.get(task_id)
-        if engine is None:
-            return
+        with self._lock:
+            engine = self._engines.get(task_id)
+            if engine is None:
+                return
 
         engine.wait_for_complete()
 
@@ -396,6 +397,8 @@ class ExecutionService:
         total_failures = stats.get("total_failures", 0)
         success_count = total_requests - total_failures
         fail_rate = stats.get("failure_rate", 0.0)
+        rps_value = stats.get("rps", 0.0)
+        tps_value = success_count / max(elapsed, 1) if success_count > 0 and elapsed > 0 else 0.0
 
         result_update = {
             "status": "stopped",
@@ -407,9 +410,9 @@ class ExecutionService:
             "max_response_time": round(stats.get("max_response_time", 0.0), 3),
             "min_response_time": round(stats.get("min_response_time", 0.0), 3),
             "p95_response_time": round(stats.get("p95_response_time", 0.0), 3),
-            "qps": round(stats.get("rps", 0.0), 3),
-            "tps": round(stats.get("rps", 0.0), 3),
-            "rps": round(stats.get("rps", 0.0), 3),
+            "qps": round(rps_value, 3),
+            "tps": round(tps_value, 3),
+            "rps": round(rps_value, 3),
             "fail_rate": round(fail_rate, 4),
             "current_users": stats.get("user_count", 0),
             "stats_json": stats,
@@ -462,6 +465,9 @@ class ExecutionService:
             total_failures = stats.get("total_failures", 0)
             success_count = total_requests - total_failures
             fail_rate = stats.get("failure_rate", 0.0)
+            rps_value = stats.get("rps", 0.0)
+            elapsed = stats.get("elapsed_seconds", 0)
+            tps_value = success_count / max(elapsed, 1) if success_count > 0 and elapsed > 0 else 0.0
 
             update_data = {
                 "total_requests": total_requests,
@@ -471,9 +477,9 @@ class ExecutionService:
                 "max_response_time": round(stats.get("max_response_time", 0.0), 3),
                 "min_response_time": round(stats.get("min_response_time", 0.0), 3),
                 "p95_response_time": round(stats.get("p95_response_time", 0.0), 3),
-                "qps": round(stats.get("rps", 0.0), 3),
-                "tps": round(stats.get("rps", 0.0), 3),
-                "rps": round(stats.get("rps", 0.0), 3),
+                "qps": round(rps_value, 3),
+                "tps": round(tps_value, 3),
+                "rps": round(rps_value, 3),
                 "fail_rate": round(fail_rate, 4),
                 "current_users": stats.get("user_count", 0),
                 "stats_json": stats,
@@ -487,6 +493,7 @@ class ExecutionService:
         """根据任务数据构建 Locust 引擎配置
 
         将数据库中的任务字段映射为 EngineConfig 和 TaskConfig。
+        自动从完整URL中解析出host(基地址)和path(路径部分)。
 
         Args:
             task: 任务数据字典
@@ -494,20 +501,28 @@ class ExecutionService:
         Returns:
             EngineConfig 实例
         """
+        from urllib.parse import urlparse
+
         method = task.get("method", "GET").upper()
         url = task.get("url", "")
-        host = url
+
+        parsed = urlparse(url)
+        host = f"{parsed.scheme}://{parsed.netloc}" if parsed.scheme and parsed.netloc else url
+        path = parsed.path or "/"
+
+        if parsed.query:
+            path = f"{path}?{parsed.query}"
 
         if method == "WEBSOCKET":
             task_cfg = TaskConfig(
                 name=task.get("name", "ws_task"),
                 method="WEBSOCKET",
-                path="/",
+                path=path,
                 headers=task.get("headers", {}),
                 cookies=task.get("cookies", {}),
                 params=task.get("params", {}),
                 timeout=float(task.get("timeout", 30)),
-                ws_path="/",
+                ws_path=path,
                 ws_message="",
                 ws_duration=10.0,
             )
@@ -519,7 +534,7 @@ class ExecutionService:
             task_cfg = TaskConfig(
                 name=task.get("name", "http_task"),
                 method=method,
-                path="/",
+                path=path,
                 headers=task.get("headers", {}),
                 cookies=task.get("cookies", {}),
                 params=task.get("params", {}),

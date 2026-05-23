@@ -6,20 +6,14 @@
 监控节点状态，协调分布式压测任务。
 """
 
+from __future__ import annotations
+
 import multiprocessing
 import time
 import threading
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import Any
-
-import gevent
-from gevent.monkey import patch_all as gevent_patch_all
-
-if not gevent.monkey.is_module_patched("threading"):
-    gevent_patch_all()
-
-from locust.env import Environment
 
 from utils.logger import get_logger
 
@@ -626,10 +620,14 @@ class DistributedManager:
             auth_token: 认证令牌
             auth_type: 认证类型
         """
-        import gevent.monkey
+        import gevent
+        from gevent.monkey import patch_all as gevent_patch_all
 
         if not gevent.monkey.is_module_patched("threading"):
-            gevent.monkey.patch_all()
+            try:
+                gevent_patch_all()
+            except Exception:
+                pass
 
         from locust.env import Environment
         from core.locust_engine import (
@@ -700,10 +698,14 @@ class DistributedManager:
             auth_token: 认证令牌
             auth_type: 认证类型
         """
-        import gevent.monkey
+        import gevent
+        from gevent.monkey import patch_all as gevent_patch_all
 
         if not gevent.monkey.is_module_patched("threading"):
-            gevent.monkey.patch_all()
+            try:
+                gevent_patch_all()
+            except Exception:
+                pass
 
         from locust.env import Environment
         from core.locust_engine import (

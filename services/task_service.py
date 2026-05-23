@@ -364,8 +364,8 @@ class TaskService:
         run_time = task_data.get("run_time", "5m")
         if isinstance(run_time, str) and run_time.strip():
             import re
-            if not re.match(r"^\d+[smh]?$", run_time.strip().lower()):
-                errors.append(f"运行时间格式错误: {run_time}，应为如 10s/5m/1h 的格式")
+            if not re.match(r"^(\d+[smh])+$", run_time.strip().lower()):
+                errors.append(f"运行时间格式错误: {run_time}，应为如 10s/5m/1h/1h30m 的格式")
 
         timeout = task_data.get("timeout", 30)
         if not isinstance(timeout, (int, float)) or timeout < 0:

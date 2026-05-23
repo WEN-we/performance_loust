@@ -23,6 +23,8 @@ class SystemSnapshot:
     disk_total_gb: float = 0.0
     net_bytes_sent: int = 0
     net_bytes_recv: int = 0
+    net_upload_speed: float = 0.0
+    net_download_speed: float = 0.0
     process_count: int = 0
     thread_count: int = 0
 
@@ -139,9 +141,20 @@ class SystemMonitor:
 
     def _monitor_loop(self) -> None:
         logger.info("系统监控线程已启动, 采集间隔: %.1f秒", self._interval)
+        prev_snapshot = None
         while self._running:
             try:
                 snapshot = self.take_snapshot()
+                if prev_snapshot is not None:
+                    elapsed = snapshot.timestamp - prev_snapshot.timestamp
+                    if elapsed > 0:
+                        snapshot.net_upload_speed = (
+                            (snapshot.net_bytes_sent - prev_snapshot.net_bytes_sent) / elapsed
+                        )
+                        snapshot.net_download_speed = (
+                            (snapshot.net_bytes_recv - prev_snapshot.net_bytes_recv) / elapsed
+                        )
+                prev_snapshot = snapshot
                 for cb in self._callbacks:
                     try:
                         cb(snapshot)
@@ -183,6 +196,14 @@ class SystemMonitor:
         return {
             "upload_bytes_per_sec": net2.bytes_sent - net1.bytes_sent,
             "download_bytes_per_sec": net2.bytes_recv - net1.bytes_recv,
+        }
+
+    def get_network_speed_nonblocking(self) -> dict[str, float]:
+        with self._lock:
+            latest = self._latest
+        return {
+            "upload_bytes_per_sec": latest.net_upload_speed,
+            "download_bytes_per_sec": latest.net_download_speed,
         }
 
     def clear_history(self) -> None:
