@@ -1,0 +1,36 @@
+2026-05-23 12:26:27 [INFO] database - 数据表初始化/校验完成
+2026-05-23 12:26:27 [INFO] database - 数据库管理器初始化完成，数据库路径: :memory:
+2026-05-23 12:26:27 [INFO] database - 创建任务成功，ID: 1，名称: test
+2026-05-23 12:26:27 [INFO] database - 更新任务成功，ID: 1
+2026-05-23 12:26:27 [INFO] database - 删除任务成功，ID: 1
+2026-05-23 12:26:27 [INFO] database - 数据库管理器已关闭
+2026-05-23 12:26:27 [INFO] database - 数据库管理器已关闭
+2026-05-23 12:26:48 [INFO] database - 数据表初始化/校验完成
+2026-05-23 12:26:48 [INFO] database - 数据库管理器初始化完成，数据库路径: :memory:
+2026-05-23 12:26:48 [ERROR] database - 数据库操作异常，已回滚: FOREIGN KEY constraint failed
+2026-05-23 12:26:48 [INFO] database - 数据库管理器已关闭
+2026-05-23 12:27:29 [INFO] database - 数据表初始化/校验完成
+2026-05-23 12:27:29 [INFO] database - 数据库管理器初始化完成，数据库路径: :memory:
+2026-05-23 12:27:29 [INFO] database - 创建任务成功，ID: 1，名称: base_task
+2026-05-23 12:27:29 [INFO] database - 创建任务结果成功，ID: 1，任务ID: 1
+2026-05-23 12:27:29 [INFO] database - 更新任务结果状态成功，ID: 1，新状态: stopped
+2026-05-23 12:27:29 [INFO] database - 删除任务结果成功，ID: 1
+2026-05-23 12:27:29 [INFO] database - 创建历史记录成功，ID: 1，任务: test
+2026-05-23 12:27:29 [INFO] database - 更新历史记录成功，ID: 1
+2026-05-23 12:27:29 [INFO] database - 删除历史记录成功，ID: 1
+2026-05-23 12:27:29 [INFO] database - 批量设置配置项，共 2 项
+2026-05-23 12:27:29 [INFO] database - 删除配置项成功: theme
+2026-05-23 12:27:29 [INFO] database - 创建节点成功，ID: 1，类型: master，地址: 192.168.1.1:5557
+2026-05-23 12:27:29 [INFO] database - 创建节点成功，ID: 2，类型: worker，地址: 192.168.1.2:5558
+2026-05-23 12:27:29 [INFO] database - 更新节点状态成功，ID: 1，新状态: online
+2026-05-23 12:27:29 [INFO] database - 删除节点成功，ID: 1
+2026-05-23 12:27:29 [INFO] database - 创建任务成功，ID: 4，名称: ws_task
+2026-05-23 12:27:29 [INFO] database - 创建任务结果成功，ID: 2，任务ID: 1
+2026-05-23 12:27:29 [INFO] database - 创建历史记录成功，ID: 2，任务: time_test
+2026-05-23 12:27:29 [INFO] database - 创建节点成功，ID: 3，类型: worker，地址: 10.0.0.1:5557
+2026-05-23 12:27:29 [INFO] database - 数据库管理器已关闭
+2026-05-23 12:27:29 [INFO] database - 数据库管理器已关闭
+2026-05-23 13:57:43 [INFO] database - 数据表初始化/校验完成
+2026-05-23 13:57:43 [INFO] database - 数据库管理器初始化完成，数据库路径: D:\Pthon.Object\performance_loust\data\performance.db
+2026-05-23 13:57:43 [INFO] database - 数据库管理器已关闭
+2026-05-23 13:57:43 [INFO] database - 数据库管理器已关闭
