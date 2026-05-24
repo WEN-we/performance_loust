@@ -23,19 +23,30 @@ logger = get_logger("execution_service")
 
 
 class ExecutionService:
-    """任务执行服务类
+    """任务执行服务类（单例模式）
 
     管理任务的执行生命周期，封装 LocustEngine 的启停控制，
     维护执行状态映射，支持多任务队列顺序执行，
     并在执行完成后自动将结果持久化到数据库。
+
+    所有页面共享同一实例，确保运行中的引擎状态全局可见。
     """
 
-    def __init__(self, db: DatabaseManager | None = None) -> None:
-        """初始化任务执行服务
+    _instance: "ExecutionService | None" = None
+    _init_lock = threading.Lock()
 
-        Args:
-            db: 数据库管理器实例，为None时使用单例
-        """
+    def __new__(cls, db: DatabaseManager | None = None, **kwargs: Any) -> "ExecutionService":
+        with cls._init_lock:
+            if cls._instance is None:
+                cls._instance = super().__new__(cls)
+                cls._instance._initialized = False
+            return cls._instance
+
+    def __init__(self, db: DatabaseManager | None = None) -> None:
+        if self._initialized:
+            return
+        self._initialized = True
+
         self._db = db or DatabaseManager()
         self._engines: dict[int, LocustEngine] = {}
         self._result_ids: dict[int, int] = {}
@@ -44,6 +55,13 @@ class ExecutionService:
         self._queue_running = False
         self._queue_thread: threading.Thread | None = None
         self._queue_stop_event = threading.Event()
+
+    @classmethod
+    def reset_instance(cls) -> None:
+        with cls._init_lock:
+            if cls._instance is not None:
+                cls._instance._initialized = False
+                cls._instance = None
 
     def start_task(self, task_id: int) -> bool:
         """启动任务
