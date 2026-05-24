@@ -162,20 +162,22 @@ class RealtimeChart(QFrame):
 
         self._setup_ui()
         self._setup_axes()
+        self._setup_tooltip()
         self._apply_chart_style()
         self._apply_frame_style()
 
     def _setup_ui(self) -> None:
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(0)
 
-        self._fig = Figure(figsize=(5, 3.2), dpi=100)
+        self._fig = Figure(figsize=(6, 3.5), dpi=100)
         self._canvas = FigureCanvas(self._fig)
         self._canvas.setSizePolicy(
             QSizePolicy.Policy.Expanding,
             QSizePolicy.Policy.Expanding,
         )
+        self.setMinimumHeight(280)
         self._canvas.updateGeometry()
         layout.addWidget(self._canvas)
 
@@ -198,7 +200,115 @@ class RealtimeChart(QFrame):
         if len(self._series_names) > 1:
             self._ax.legend(fontsize=8, loc="upper left", framealpha=0.8)
 
-        self._fig.tight_layout(pad=2.0)
+        self._fig.subplots_adjust(left=0.14, right=0.96, top=0.88, bottom=0.18)
+
+    def _setup_tooltip(self) -> None:
+        self._tooltip_annotation = self._ax.annotate(
+            "",
+            xy=(0, 0),
+            xytext=(20, 20),
+            textcoords="offset points",
+            fontsize=9,
+            fontweight="bold",
+            bbox=dict(
+                boxstyle="round,pad=0.5",
+                facecolor="#ffffff",
+                edgecolor="#d0d5dd",
+                alpha=0.95,
+            ),
+            arrowprops=dict(
+                arrowstyle="->",
+                connectionstyle="arc3,rad=0",
+                color="#5a5a7a",
+            ),
+            visible=False,
+            zorder=100,
+        )
+        self._vline = self._ax.axvline(x=0, visible=False, color="#5a5a7a", linewidth=0.8, linestyle=":", alpha=0.6)
+        self._highlight_dots: list = []
+        self._canvas.mpl_connect("motion_notify_event", self._on_mouse_move)
+
+    def _on_mouse_move(self, event) -> None:
+        if event.inaxes != self._ax or not self._time_data:
+            self._tooltip_annotation.set_visible(False)
+            self._vline.set_visible(False)
+            for dot in self._highlight_dots:
+                dot.remove()
+            self._highlight_dots.clear()
+            self._canvas.draw_idle()
+            return
+
+        x_mouse = event.xdata
+        time_list = list(self._time_data)
+        if not time_list:
+            return
+
+        distances = [abs(t - x_mouse) for t in time_list]
+        nearest_idx = distances.index(min(distances))
+        nearest_time = time_list[nearest_idx]
+
+        lines_parts = [f"时间: {nearest_time:.1f}s"]
+        for name in self._series_names:
+            data_list = list(self._series_data[name])
+            if nearest_idx < len(data_list):
+                val = data_list[nearest_idx]
+                lines_parts.append(f"{name}: {val:.2f}")
+
+        tooltip_text = "\n".join(lines_parts)
+
+        y_vals = []
+        for name in self._series_names:
+            data_list = list(self._series_data[name])
+            if nearest_idx < len(data_list):
+                y_vals.append(data_list[nearest_idx])
+        anchor_y = sum(y_vals) / len(y_vals) if y_vals else 0
+
+        self._tooltip_annotation.set_text(tooltip_text)
+        self._tooltip_annotation.xy = (nearest_time, anchor_y)
+
+        xlim = self._ax.get_xlim()
+        ylim = self._ax.get_ylim()
+        x_range = xlim[1] - xlim[0] if xlim[1] != xlim[0] else 1
+        y_range = ylim[1] - ylim[0] if ylim[1] != ylim[0] else 1
+        x_pos_ratio = (nearest_time - xlim[0]) / x_range
+
+        if x_pos_ratio > 0.65:
+            self._tooltip_annotation.xytext = (-120, 20)
+        else:
+            self._tooltip_annotation.xytext = (20, 20)
+
+        self._tooltip_annotation.set_visible(True)
+
+        self._vline.set_xdata([nearest_time, nearest_time])
+        self._vline.set_visible(True)
+
+        for dot in self._highlight_dots:
+            dot.remove()
+        self._highlight_dots.clear()
+
+        for name, color in zip(self._series_names, self._series_colors):
+            data_list = list(self._series_data[name])
+            if nearest_idx < len(data_list):
+                dot, = self._ax.plot(
+                    nearest_time, data_list[nearest_idx],
+                    "o", color=color, markersize=7,
+                    markeredgecolor="white", markeredgewidth=1.5,
+                    zorder=99,
+                )
+                self._highlight_dots.append(dot)
+
+        if self._theme == "dark":
+            self._tooltip_annotation.get_bbox_patch().set_facecolor("#2d2d44")
+            self._tooltip_annotation.get_bbox_patch().set_edgecolor("#5a5a7a")
+            self._tooltip_annotation.set_color("#e0e0f0")
+            self._vline.set_color("#a0a0c0")
+        else:
+            self._tooltip_annotation.get_bbox_patch().set_facecolor("#ffffff")
+            self._tooltip_annotation.get_bbox_patch().set_edgecolor("#d0d5dd")
+            self._tooltip_annotation.set_color("#1a1a2e")
+            self._vline.set_color("#5a5a7a")
+
+        self._canvas.draw_idle()
 
     def _apply_frame_style(self) -> None:
         if self._theme == "dark":
@@ -288,6 +398,11 @@ class RealtimeChart(QFrame):
             if name in self._fills:
                 self._fills[name].remove()
                 self._fills[name] = self._ax.fill_between([], [], alpha=0.0)
+        self._tooltip_annotation.set_visible(False)
+        self._vline.set_visible(False)
+        for dot in self._highlight_dots:
+            dot.remove()
+        self._highlight_dots.clear()
         self._ax.set_xlim(0, 1)
         self._ax.set_ylim(0, 1)
         self._canvas.draw_idle()
