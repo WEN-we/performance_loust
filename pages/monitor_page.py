@@ -598,7 +598,8 @@ class MonitorPage(QWidget):
         """定时刷新监控数据（1秒间隔回调）
 
         从 ExecutionService 获取实时统计数据，
-        更新指标卡片和图表。
+        更新指标卡片和图表。当任务未运行时，
+        尝试从数据库获取最新结果以展示历史数据。
         """
         if self._monitoring_task_id is None:
             return
@@ -606,15 +607,42 @@ class MonitorPage(QWidget):
         try:
             status_info = self._execution_service.get_task_status(self._monitoring_task_id)
             stats = status_info.get("stats", {})
-
-            if not stats or not isinstance(stats, dict):
-                return
+            engine_state = status_info.get("engine_state", "idle")
 
             import time
             now = time.monotonic()
             if self._monitor_start_time is None:
                 self._monitor_start_time = now
             self._elapsed_seconds = now - self._monitor_start_time
+
+            if engine_state != "running" or not stats:
+                latest = self._db.get_latest_result_by_task(self._monitoring_task_id)
+                if latest:
+                    stats = {
+                        "rps": latest.get("qps", 0.0) or latest.get("rps", 0.0),
+                        "total_requests": latest.get("total_requests", 0),
+                        "total_failures": latest.get("fail_count", 0),
+                        "avg_response_time": latest.get("avg_response_time", 0.0),
+                        "max_response_time": latest.get("max_response_time", 0.0),
+                        "min_response_time": latest.get("min_response_time", 0.0),
+                        "p95_response_time": latest.get("p95_response_time", 0.0),
+                        "failure_rate": latest.get("fail_rate", 0.0),
+                        "user_count": latest.get("current_users", 0),
+                        "elapsed_seconds": 0,
+                    }
+                    elapsed_str = latest.get("end_time", "")
+                    start_str = latest.get("start_time", "")
+                    if elapsed_str and start_str:
+                        try:
+                            from datetime import datetime as dt
+                            start_dt = dt.strptime(start_str, "%Y-%m-%d %H:%M:%S")
+                            end_dt = dt.strptime(elapsed_str, "%Y-%m-%d %H:%M:%S")
+                            stats["elapsed_seconds"] = (end_dt - start_dt).total_seconds()
+                        except (ValueError, TypeError):
+                            pass
+
+            if not stats:
+                return
 
             rps = stats.get("rps", 0.0)
             total_requests = stats.get("total_requests", 0)
@@ -642,25 +670,26 @@ class MonitorPage(QWidget):
             self._card_fail.set_value(str(total_failures))
             self._card_elapsed.set_value(f"{self._elapsed_seconds:.0f}")
 
-            self._chart_qps_tps_rps.append_data(
-                self._elapsed_seconds,
-                {"QPS": qps, "TPS": tps, "RPS": rps},
-            )
+            if engine_state == "running":
+                self._chart_qps_tps_rps.append_data(
+                    self._elapsed_seconds,
+                    {"QPS": qps, "TPS": tps, "RPS": rps},
+                )
 
-            self._chart_response_time.append_data(
-                self._elapsed_seconds,
-                {"平均": avg_rt, "最大": max_rt, "95%": p95_rt},
-            )
+                self._chart_response_time.append_data(
+                    self._elapsed_seconds,
+                    {"平均": avg_rt, "最大": max_rt, "95%": p95_rt},
+                )
 
-            self._chart_fail_rate.append_data(
-                self._elapsed_seconds,
-                {"失败率": fail_rate * 100},
-            )
+                self._chart_fail_rate.append_data(
+                    self._elapsed_seconds,
+                    {"失败率": fail_rate * 100},
+                )
 
-            self._chart_users.append_data(
-                self._elapsed_seconds,
-                {"在线用户": user_count},
-            )
+                self._chart_users.append_data(
+                    self._elapsed_seconds,
+                    {"在线用户": user_count},
+                )
 
         except Exception:
             from utils.logger import get_logger

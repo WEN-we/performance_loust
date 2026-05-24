@@ -176,6 +176,10 @@ class MainWindow(QMainWindow):
     def _connect_signals(self) -> None:
         self._navigation.navigation_changed.connect(self._on_navigation_changed)
 
+        for i, page in enumerate(self._pages):
+            if hasattr(page, "navigate_requested"):
+                page.navigate_requested.connect(self._switch_page)
+
     @Slot(int)
     def _on_navigation_changed(self, index: int) -> None:
         self._switch_page(index)

@@ -107,6 +107,12 @@ def main() -> int:
     except Exception as e:
         logger.warning(f"清理运行中任务状态失败: {e}")
 
+    try:
+        from insert_test_data import insert_test_data
+        insert_test_data()
+    except Exception as e:
+        logger.warning(f"插入测试数据失败: {e}")
+
     from core.plugin_manager import PluginManager
     plugin_mgr = PluginManager()
     plugins_dir = Path(settings._get_base_dir()) / "plugins"

@@ -7,6 +7,7 @@
 
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QColor
+from PySide6.QtCore import QModelIndex
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -513,7 +514,8 @@ class ExecuteTaskPage(QWidget):
             from utils.logger import get_logger
             get_logger("execute_task_page").exception("刷新队列状态失败")
 
-    def _on_task_selected(self, row: int) -> None:
+    def _on_task_selected(self, current: QModelIndex, _previous: QModelIndex = None) -> None:
+        row = current.row() if current.isValid() else -1
         """任务列表选中行变更回调
 
         Args:
