@@ -14,7 +14,6 @@ matplotlib.rcParams['font.sans-serif'] = ['SimHei', 'Microsoft YaHei', 'WenQuanY
 matplotlib.rcParams['axes.unicode_minus'] = False
 
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 from matplotlib.figure import Figure
 
 from PySide6.QtCore import Qt, QTimer, Signal
@@ -132,11 +131,11 @@ class MetricCard(QFrame):
         self._apply_card_style()
 
 
-class RealtimeChart(FigureCanvas):
+class RealtimeChart(QFrame):
     """实时折线图组件
 
-    基于 matplotlib 的 FigureCanvasQTAgg，用于在 PySide6 界面中
-    嵌入实时折线图，支持多数据系列、自动滚动、暗黑模式。
+    基于 matplotlib 的 FigureCanvasQTAgg，嵌入 QFrame 卡片容器中，
+    支持多数据系列、自动滚动、暗黑模式、渐变填充区域。
     """
 
     MAX_POINTS = 120
@@ -149,10 +148,7 @@ class RealtimeChart(FigureCanvas):
         series_colors: list[str] | None = None,
         parent: QWidget | None = None,
     ) -> None:
-        self._fig = Figure(figsize=(6, 3), dpi=100)
-        super().__init__(self._fig)
-        self.setParent(parent)
-
+        super().__init__(parent)
         self._title = title
         self._ylabel = ylabel
         self._series_names = series_names or ["值"]
@@ -164,47 +160,69 @@ class RealtimeChart(FigureCanvas):
             name: deque(maxlen=self.MAX_POINTS) for name in self._series_names
         }
 
+        self._setup_ui()
         self._setup_axes()
         self._apply_chart_style()
+        self._apply_frame_style()
 
-        FigureCanvas.setSizePolicy(
-            self,
+    def _setup_ui(self) -> None:
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(0)
+
+        self._fig = Figure(figsize=(5, 3.2), dpi=100)
+        self._canvas = FigureCanvas(self._fig)
+        self._canvas.setSizePolicy(
             QSizePolicy.Policy.Expanding,
             QSizePolicy.Policy.Expanding,
         )
-        FigureCanvas.updateGeometry(self)
+        self._canvas.updateGeometry()
+        layout.addWidget(self._canvas)
 
     def _setup_axes(self) -> None:
-        """初始化坐标轴和折线"""
         self._fig.clear()
         self._ax = self._fig.add_subplot(111)
-        self._ax.set_title(self._title, fontsize=11, fontweight="bold")
+        self._ax.set_title(self._title, fontsize=12, fontweight="bold", pad=10)
         self._ax.set_ylabel(self._ylabel, fontsize=9)
         self._ax.set_xlabel("时间 (秒)", fontsize=9)
-        self._ax.grid(True, alpha=0.3)
+        self._ax.grid(True, alpha=0.3, linestyle="--")
 
         self._lines: dict[str, object] = {}
+        self._fills: dict[str, object] = {}
         for name, color in zip(self._series_names, self._series_colors):
-            line, = self._ax.plot([], [], label=name, color=color, linewidth=1.5)
+            line, = self._ax.plot([], [], label=name, color=color, linewidth=2.0, alpha=0.9)
             self._lines[name] = line
+            fill = self._ax.fill_between([], [], alpha=0.0)
+            self._fills[name] = fill
 
         if len(self._series_names) > 1:
-            self._ax.legend(fontsize=8, loc="upper left")
+            self._ax.legend(fontsize=8, loc="upper left", framealpha=0.8)
 
-        self._fig.tight_layout()
+        self._fig.tight_layout(pad=2.0)
+
+    def _apply_frame_style(self) -> None:
+        if self._theme == "dark":
+            self.setStyleSheet(
+                "QFrame { background-color: #252536; border: 1px solid #3a3a55;"
+                " border-radius: 12px; }"
+            )
+        else:
+            self.setStyleSheet(
+                "QFrame { background-color: #ffffff; border: 1px solid #e0e4ec;"
+                " border-radius: 12px; }"
+            )
 
     def _apply_chart_style(self) -> None:
-        """根据主题应用图表样式"""
         if self._theme == "dark":
-            self._fig.patch.set_facecolor("#1e1e2e")
-            self._ax.set_facecolor("#252536")
+            self._fig.patch.set_facecolor("#252536")
+            self._ax.set_facecolor("#1e1e2e")
             self._ax.tick_params(colors="#a0a0c0", labelsize=8)
             self._ax.xaxis.label.set_color("#a0a0c0")
             self._ax.yaxis.label.set_color("#a0a0c0")
             self._ax.title.set_color("#e0e0f0")
             for spine in self._ax.spines.values():
                 spine.set_color("#3a3a55")
-            self._ax.grid(True, alpha=0.2, color="#3a3a55")
+            self._ax.grid(True, alpha=0.15, color="#3a3a55", linestyle="--")
             legend = self._ax.get_legend()
             if legend:
                 legend.get_frame().set_facecolor("#252536")
@@ -213,28 +231,22 @@ class RealtimeChart(FigureCanvas):
                     text.set_color("#a0a0c0")
         else:
             self._fig.patch.set_facecolor("#ffffff")
-            self._ax.set_facecolor("#fafbfc")
+            self._ax.set_facecolor("#fafbfd")
             self._ax.tick_params(colors="#5a5a7a", labelsize=8)
             self._ax.xaxis.label.set_color("#5a5a7a")
             self._ax.yaxis.label.set_color("#5a5a7a")
             self._ax.title.set_color("#1a1a2e")
             for spine in self._ax.spines.values():
-                spine.set_color("#d0d5dd")
-            self._ax.grid(True, alpha=0.3, color="#d0d5dd")
+                spine.set_color("#e0e4ec")
+            self._ax.grid(True, alpha=0.25, color="#e0e4ec", linestyle="--")
             legend = self._ax.get_legend()
             if legend:
                 legend.get_frame().set_facecolor("#ffffff")
-                legend.get_frame().set_edgecolor("#d0d5dd")
+                legend.get_frame().set_edgecolor("#e0e4ec")
                 for text in legend.get_texts():
                     text.set_color("#5a5a7a")
 
     def append_data(self, time_val: float, values: dict[str, float]) -> None:
-        """追加一组数据点
-
-        Args:
-            time_val: 时间戳（秒）
-            values: 各系列对应的值，键为系列名称
-        """
         self._time_data.append(time_val)
         for name in self._series_names:
             val = values.get(name, 0.0)
@@ -243,7 +255,15 @@ class RealtimeChart(FigureCanvas):
         time_list = list(self._time_data)
         for name in self._series_names:
             if name in self._lines:
-                self._lines[name].set_data(time_list, list(self._series_data[name]))
+                data_list = list(self._series_data[name])
+                self._lines[name].set_data(time_list, data_list)
+
+                if name in self._fills:
+                    self._fills[name].remove()
+                color = self._series_colors[self._series_names.index(name)]
+                self._fills[name] = self._ax.fill_between(
+                    time_list, data_list, alpha=0.12, color=color,
+                )
 
         if time_list:
             self._ax.set_xlim(time_list[0], max(time_list[-1], time_list[0] + 1))
@@ -254,38 +274,31 @@ class RealtimeChart(FigureCanvas):
         if all_vals:
             min_val = min(all_vals)
             max_val = max(all_vals)
-            margin = max((max_val - min_val) * 0.1, 1)
+            margin = max((max_val - min_val) * 0.15, 1)
             self._ax.set_ylim(max(0, min_val - margin), max_val + margin)
 
-        self.draw_idle()
+        self._canvas.draw_idle()
 
     def clear_data(self) -> None:
-        """清空所有数据"""
         self._time_data.clear()
         for name in self._series_names:
             self._series_data[name].clear()
             if name in self._lines:
                 self._lines[name].set_data([], [])
+            if name in self._fills:
+                self._fills[name].remove()
+                self._fills[name] = self._ax.fill_between([], [], alpha=0.0)
         self._ax.set_xlim(0, 1)
         self._ax.set_ylim(0, 1)
-        self.draw_idle()
+        self._canvas.draw_idle()
 
     def set_theme(self, theme: str) -> None:
-        """设置暗黑/亮色主题
-
-        Args:
-            theme: 主题名称，"light" 或 "dark"
-        """
         self._theme = theme
         self._apply_chart_style()
-        self.draw_idle()
+        self._apply_frame_style()
+        self._canvas.draw_idle()
 
     def export_png(self, file_path: str) -> None:
-        """导出图表为PNG图片
-
-        Args:
-            file_path: 保存路径
-        """
         self._fig.savefig(file_path, dpi=150, bbox_inches="tight",
                           facecolor=self._fig.get_facecolor())
 
@@ -429,25 +442,16 @@ class MonitorPage(QWidget):
         parent_layout.addLayout(cards_layout)
 
     def _setup_charts(self, parent_layout: QVBoxLayout) -> None:
-        """创建图表区域（中部），包含多个子图
-
-        图表包括：
-        1. QPS/TPS/RPS 趋势图
-        2. 响应时间趋势图（平均/最大/95%）
-        3. 失败率趋势图
-        4. 在线用户数趋势图
-
-        每个图表附带 matplotlib NavigationToolbar 支持缩放。
-
-        Args:
-            parent_layout: 父级布局
-        """
         charts_header = QHBoxLayout()
         charts_title = QLabel("实时趋势图表")
         charts_title.setStyleSheet("font-size: 16px; font-weight: 600; color: #1a1a2e;")
         charts_header.addWidget(charts_title)
         charts_header.addStretch()
         parent_layout.addLayout(charts_header)
+
+        charts_grid = QGridLayout()
+        charts_grid.setSpacing(16)
+        charts_grid.setContentsMargins(0, 0, 0, 0)
 
         self._chart_qps_tps_rps = RealtimeChart(
             title="QPS / TPS / RPS 趋势",
@@ -456,14 +460,7 @@ class MonitorPage(QWidget):
             series_colors=["#4a90d9", "#52c41a", "#722ed1"],
             parent=self,
         )
-        self._toolbar_qps = NavigationToolbar(self._chart_qps_tps_rps, self)
-        self._toolbar_qps.setMaximumHeight(30)
-
-        qps_layout = QVBoxLayout()
-        qps_layout.setSpacing(0)
-        qps_layout.addWidget(self._toolbar_qps)
-        qps_layout.addWidget(self._chart_qps_tps_rps)
-        parent_layout.addLayout(qps_layout)
+        charts_grid.addWidget(self._chart_qps_tps_rps, 0, 0)
 
         self._chart_response_time = RealtimeChart(
             title="响应时间趋势",
@@ -472,17 +469,7 @@ class MonitorPage(QWidget):
             series_colors=["#faad14", "#f5222d", "#eb2f96"],
             parent=self,
         )
-        self._toolbar_rt = NavigationToolbar(self._chart_response_time, self)
-        self._toolbar_rt.setMaximumHeight(30)
-
-        rt_layout = QVBoxLayout()
-        rt_layout.setSpacing(0)
-        rt_layout.addWidget(self._toolbar_rt)
-        rt_layout.addWidget(self._chart_response_time)
-        parent_layout.addLayout(rt_layout)
-
-        bottom_charts_layout = QHBoxLayout()
-        bottom_charts_layout.setSpacing(16)
+        charts_grid.addWidget(self._chart_response_time, 0, 1)
 
         self._chart_fail_rate = RealtimeChart(
             title="失败率趋势",
@@ -491,13 +478,7 @@ class MonitorPage(QWidget):
             series_colors=["#f5222d"],
             parent=self,
         )
-        self._toolbar_fail = NavigationToolbar(self._chart_fail_rate, self)
-        self._toolbar_fail.setMaximumHeight(30)
-
-        fail_layout = QVBoxLayout()
-        fail_layout.setSpacing(0)
-        fail_layout.addWidget(self._toolbar_fail)
-        fail_layout.addWidget(self._chart_fail_rate, 1)
+        charts_grid.addWidget(self._chart_fail_rate, 1, 0)
 
         self._chart_users = RealtimeChart(
             title="在线用户数趋势",
@@ -506,29 +487,15 @@ class MonitorPage(QWidget):
             series_colors=["#4a90d9"],
             parent=self,
         )
-        self._toolbar_users = NavigationToolbar(self._chart_users, self)
-        self._toolbar_users.setMaximumHeight(30)
+        charts_grid.addWidget(self._chart_users, 1, 1)
 
-        users_layout = QVBoxLayout()
-        users_layout.setSpacing(0)
-        users_layout.addWidget(self._toolbar_users)
-        users_layout.addWidget(self._chart_users, 1)
-
-        bottom_charts_layout.addLayout(fail_layout)
-        bottom_charts_layout.addLayout(users_layout)
-        parent_layout.addLayout(bottom_charts_layout)
+        parent_layout.addLayout(charts_grid)
 
         self._all_charts = [
             self._chart_qps_tps_rps,
             self._chart_response_time,
             self._chart_fail_rate,
             self._chart_users,
-        ]
-        self._all_toolbars = [
-            self._toolbar_qps,
-            self._toolbar_rt,
-            self._toolbar_fail,
-            self._toolbar_users,
         ]
 
     def _setup_timer(self) -> None:
@@ -929,29 +896,11 @@ class MonitorPage(QWidget):
                 "font-size: 22px; font-weight: 700; color: #e0e0f0;"
             )
             self._task_info_label.setStyleSheet("font-size: 12px; color: #a0a0c0;")
-
-            for toolbar in self._all_toolbars:
-                toolbar.setStyleSheet(
-                    "QToolBar { background-color: #252536; border: 1px solid #3a3a55;"
-                    " border-radius: 4px; spacing: 4px; padding: 2px; }"
-                    "QToolButton { color: #a0a0c0; background-color: #2d2d44;"
-                    " border: 1px solid #3a3a55; border-radius: 3px; padding: 3px; }"
-                    "QToolButton:hover { background-color: #353552; }"
-                )
         else:
             self._title_label.setStyleSheet(
                 "font-size: 22px; font-weight: 700; color: #1a1a2e;"
             )
             self._task_info_label.setStyleSheet("font-size: 12px; color: #5a5a7a;")
-
-            for toolbar in self._all_toolbars:
-                toolbar.setStyleSheet(
-                    "QToolBar { background-color: #f5f7fa; border: 1px solid #d0d5dd;"
-                    " border-radius: 4px; spacing: 4px; padding: 2px; }"
-                    "QToolButton { color: #5a5a7a; background-color: #ffffff;"
-                    " border: 1px solid #d0d5dd; border-radius: 3px; padding: 3px; }"
-                    "QToolButton:hover { background-color: #e8ecf1; }"
-                )
 
         for card in self._metric_cards:
             card.set_theme(theme)
