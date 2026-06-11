@@ -7,6 +7,14 @@ from pathlib import Path
 def setup_environment() -> None:
     if getattr(sys, "frozen", False):
         base_dir = Path(sys.executable).parent
+        # PyInstaller --windowed 模式下 stdin/stdout/stderr 文件描述符无效
+        # locust 库初始化时可能访问这些描述符导致 ValueError: bad file descriptor
+        for stream_name in ("stdin", "stdout", "stderr"):
+            try:
+                stream = getattr(sys, stream_name)
+                stream.fileno()
+            except (OSError, ValueError, AttributeError):
+                setattr(sys, stream_name, open(os.devnull, "w" if stream_name != "stdin" else "r"))
     else:
         base_dir = Path(__file__).resolve().parent
 

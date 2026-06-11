@@ -446,6 +446,50 @@ QSpinBox:focus, QDoubleSpinBox:focus {
     border-color: {{border_focus}};
 }
 
+QSpinBox::up-button, QDoubleSpinBox::up-button {
+    subcontrol-origin: border;
+    subcontrol-position: top right;
+    width: 22px;
+    border-left: 1px solid {{border}};
+    border-top-right-radius: 5px;
+    background-color: {{bg_tertiary}};
+}
+
+QSpinBox::up-button:hover, QDoubleSpinBox::up-button:hover {
+    background-color: {{bg_hover}};
+}
+
+QSpinBox::down-button, QDoubleSpinBox::down-button {
+    subcontrol-origin: border;
+    subcontrol-position: bottom right;
+    width: 22px;
+    border-left: 1px solid {{border}};
+    border-bottom-right-radius: 5px;
+    background-color: {{bg_tertiary}};
+}
+
+QSpinBox::down-button:hover, QDoubleSpinBox::down-button:hover {
+    background-color: {{bg_hover}};
+}
+
+QSpinBox::up-arrow, QDoubleSpinBox::up-arrow {
+    image: none;
+    width: 0px;
+    height: 0px;
+    border-left: 4px solid {{bg_tertiary}};
+    border-right: 4px solid {{bg_tertiary}};
+    border-bottom: 6px solid {{text_secondary}};
+}
+
+QSpinBox::down-arrow, QDoubleSpinBox::down-arrow {
+    image: none;
+    width: 0px;
+    height: 0px;
+    border-left: 4px solid {{bg_tertiary}};
+    border-right: 4px solid {{bg_tertiary}};
+    border-top: 6px solid {{text_secondary}};
+}
+
 /* ===== 分组框样式 ===== */
 QGroupBox {
     font-weight: 600;

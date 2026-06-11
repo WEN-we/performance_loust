@@ -537,7 +537,8 @@ class DistributedManager:
             if info.state == NodeState.RUNNING:
                 # 进程意外退出
                 exit_code = info.process.exitcode if info.process else None
-                if exit_code is not None and exit_code != 0:
+                if exit_code is not None and exit_code > 0:
+                    # 正数退出码 = 异常退出；负数 = 信号终止（如 SIGTERM=-15），视为正常停止
                     info.state = NodeState.ERROR
                     info.error_message = f"进程异常退出，退出码: {exit_code}"
                 else:

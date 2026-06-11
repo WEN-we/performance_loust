@@ -114,9 +114,13 @@ class KeyValueRow(QWidget):
         self,
         key: str = "",
         value: str = "",
+        key_placeholder: str = "Key",
+        value_placeholder: str = "Value",
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
+        self._key_placeholder = key_placeholder
+        self._value_placeholder = value_placeholder
         self._setup_ui(key, value)
 
     def _setup_ui(self, key: str, value: str) -> None:
@@ -126,18 +130,24 @@ class KeyValueRow(QWidget):
         layout.setSpacing(8)
 
         self._key_edit = QLineEdit(key)
-        self._key_edit.setPlaceholderText("Key")
+        self._key_edit.setPlaceholderText(self._key_placeholder)
         self._key_edit.setMinimumWidth(150)
         layout.addWidget(self._key_edit)
 
         self._value_edit = QLineEdit(value)
-        self._value_edit.setPlaceholderText("Value")
+        self._value_edit.setPlaceholderText(self._value_placeholder)
         self._value_edit.setMinimumWidth(150)
         layout.addWidget(self._value_edit)
 
-        self._remove_btn = QPushButton("✕")
+        self._remove_btn = QPushButton("X")
         self._remove_btn.setFixedSize(32, 32)
         self._remove_btn.setProperty("danger", True)
+        self._remove_btn.setToolTip("删除")
+        self._remove_btn.setStyleSheet(
+            "padding: 0px; margin: 0px; "
+            "font-size: 14px; font-weight: bold; "
+            "min-height: 0px;"
+        )
         self._remove_btn.clicked.connect(lambda: self.removed.emit(self))
         layout.addWidget(self._remove_btn)
 
@@ -166,10 +176,14 @@ class KeyValueSection(QWidget):
     def __init__(
         self,
         title: str = "",
+        key_placeholder: str = "Key",
+        value_placeholder: str = "Value",
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self._rows: list[KeyValueRow] = []
+        self._key_placeholder = key_placeholder
+        self._value_placeholder = value_placeholder
         self._setup_ui(title)
 
     def _setup_ui(self, title: str) -> None:
@@ -188,7 +202,7 @@ class KeyValueSection(QWidget):
         self._add_btn = QPushButton("+ 添加")
         self._add_btn.setProperty("secondary", True)
         self._add_btn.setFixedWidth(80)
-        self._add_btn.clicked.connect(self._add_row)
+        self._add_btn.clicked.connect(lambda: self._add_row())
         header_layout.addWidget(self._add_btn)
 
         main_layout.addLayout(header_layout)
@@ -204,7 +218,13 @@ class KeyValueSection(QWidget):
             key: 初始 Key 值
             value: 初始 Value 值
         """
-        row = KeyValueRow(key, value, self)
+        row = KeyValueRow(
+            key,
+            value,
+            key_placeholder=self._key_placeholder,
+            value_placeholder=self._value_placeholder,
+            parent=self,
+        )
         row.removed.connect(self._remove_row)
         self._rows.append(row)
         self._rows_container.addWidget(row)
@@ -319,14 +339,14 @@ class CreateTaskPage(QWidget):
         scroll_area.setWidget(scroll_content)
         outer_layout.addWidget(scroll_area, 1)
 
-    def _create_group_box(self, title: str) -> QGroupBox:
+    def _create_group_box(self, title: str) -> tuple[QGroupBox, QVBoxLayout]:
         """创建统一风格的分组框
 
         Args:
             title: 分组框标题
 
         Returns:
-            QGroupBox 实例
+            (QGroupBox, QVBoxLayout) 元组
         """
         group = QGroupBox(title)
         layout = QVBoxLayout(group)
@@ -468,21 +488,21 @@ class CreateTaskPage(QWidget):
 
         self._token_edit = QLineEdit()
         self._token_edit.setPlaceholderText("请输入 Bearer Token")
-        self._token_edit.setVisible(False)
         self._token_row = self._create_form_row_with_container("Token:", self._token_edit, layout)
 
         self._username_edit = QLineEdit()
         self._username_edit.setPlaceholderText("请输入用户名")
-        self._username_edit.setVisible(False)
         self._username_row = self._create_form_row_with_container("用户名:", self._username_edit, layout)
 
         self._password_edit = QLineEdit()
         self._password_edit.setPlaceholderText("请输入密码")
         self._password_edit.setEchoMode(QLineEdit.EchoMode.Password)
-        self._password_edit.setVisible(False)
         self._password_row = self._create_form_row_with_container("密码:", self._password_edit, layout)
 
         self._form_layout.addWidget(group)
+
+        # 初始化认证输入行的可见性（默认 None，全部隐藏）
+        self._on_auth_type_changed(0)
 
     def _on_auth_type_changed(self, index: int) -> None:
         """认证类型切换时的处理
@@ -501,7 +521,9 @@ class CreateTaskPage(QWidget):
         """创建请求头区域"""
         group, layout = self._create_group_box("请求头")
 
-        self._headers_section = KeyValueSection("自定义请求头")
+        self._headers_section = KeyValueSection(
+            "自定义请求头", key_placeholder="Header名", value_placeholder="Header值"
+        )
         layout.addWidget(self._headers_section)
 
         self._form_layout.addWidget(group)
@@ -510,7 +532,9 @@ class CreateTaskPage(QWidget):
         """创建 Cookie 区域"""
         group, layout = self._create_group_box("Cookie")
 
-        self._cookies_section = KeyValueSection("自定义 Cookie")
+        self._cookies_section = KeyValueSection(
+            "自定义 Cookie", key_placeholder="Cookie名", value_placeholder="Cookie值"
+        )
         layout.addWidget(self._cookies_section)
 
         self._form_layout.addWidget(group)
@@ -546,7 +570,9 @@ class CreateTaskPage(QWidget):
         self._json_highlighter = JsonSyntaxHighlighter(self._json_editor)
         layout.addWidget(self._json_editor)
 
-        self._form_data_section = KeyValueSection("表单数据")
+        self._form_data_section = KeyValueSection(
+            "表单数据", key_placeholder="字段名", value_placeholder="字段值"
+        )
         self._form_data_section.setVisible(False)
         layout.addWidget(self._form_data_section)
 
@@ -604,7 +630,9 @@ class CreateTaskPage(QWidget):
         """创建参数化区域"""
         group, layout = self._create_group_box("参数化配置")
 
-        self._params_section = KeyValueSection("变量定义")
+        self._params_section = KeyValueSection(
+            "变量定义", key_placeholder="变量名", value_placeholder="默认值"
+        )
         layout.addWidget(self._params_section)
 
         csv_layout = QHBoxLayout()
@@ -657,7 +685,10 @@ class CreateTaskPage(QWidget):
             return
 
         try:
-            rows = self._task_service.import_csv_data(csv_path)
+            from PySide6.QtCore import QCoreApplication
+            QCoreApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+            rows = self._task_service.import_csv_data(csv_path, max_rows=10000)
+            QCoreApplication.restoreOverrideCursor()
             if rows:
                 headers = list(rows[0].keys())
                 self._params_section.clear_all()
@@ -671,6 +702,7 @@ class CreateTaskPage(QWidget):
             else:
                 QMessageBox.warning(self, "提示", "CSV 文件为空")
         except Exception as e:
+            QCoreApplication.restoreOverrideCursor()
             QMessageBox.critical(self, "导入失败", f"导入 CSV 数据失败:\n{e}")
 
     def _setup_stress_config_section(self) -> None:
@@ -780,7 +812,7 @@ class CreateTaskPage(QWidget):
 
         body_type = self._body_type_combo.currentText().lower()
         if body_type == "file upload":
-            body_type = "none"
+            body_type = "file"
 
         body: dict | str = {}
         if self._body_type_combo.currentIndex() == 1:
@@ -879,10 +911,11 @@ class CreateTaskPage(QWidget):
 
         try:
             if self._editing_task_id is not None:
-                task = self._task_service.update_task(
+                self._task_service.update_task(
                     self._editing_task_id, task_data
                 )
                 task_id = self._editing_task_id
+                self._title_label.setText(f"编辑任务 - {task_data.get('name', self._task_name_edit.text())}")
                 QMessageBox.information(self, "成功", f"任务已更新，ID: {task_id}")
             else:
                 task = self._task_service.create_task(task_data)
@@ -917,13 +950,17 @@ class CreateTaskPage(QWidget):
                 )
 
     def _reset_form(self) -> None:
-        """重置表单为初始状态"""
+        """重置表单为初始状态（阻断信号避免触发不必要的UI更新）"""
         self._editing_task_id = None
 
         self._task_name_edit.clear()
         self._task_type_combo.setCurrentIndex(0)
         self._method_combo.setCurrentIndex(0)
         self._url_edit.clear()
+
+        # 阻断信号避免重置过程中触发UI更新
+        self._auth_type_combo.blockSignals(True)
+        self._body_type_combo.blockSignals(True)
 
         self._auth_type_combo.setCurrentIndex(0)
         self._token_edit.clear()
@@ -949,12 +986,19 @@ class CreateTaskPage(QWidget):
 
         self._title_label.setText("创建任务")
 
+        # 恢复信号
+        self._auth_type_combo.blockSignals(False)
+        self._body_type_combo.blockSignals(False)
+
     def load_task(self, task_id: int) -> None:
         """加载已有任务数据到表单，用于编辑
 
         Args:
             task_id: 要编辑的任务 ID
         """
+        # 先重置表单状态，清除上一次的编辑数据
+        self._reset_form()
+
         task = self._task_service.get_task(task_id)
         if task is None:
             QMessageBox.warning(self, "提示", f"任务不存在，ID: {task_id}")
@@ -978,6 +1022,10 @@ class CreateTaskPage(QWidget):
             self._method_combo.setCurrentIndex(0)
 
         self._url_edit.setText(task.get("url", ""))
+
+        # 阻断信号避免UI闪烁，加载完成后再恢复并手动触发更新
+        self._auth_type_combo.blockSignals(True)
+        self._body_type_combo.blockSignals(True)
 
         token = task.get("token", "")
         if token.startswith("Bearer "):
@@ -1014,8 +1062,14 @@ class CreateTaskPage(QWidget):
         self._cookies_section.load_dict(cookies if isinstance(cookies, dict) else {})
 
         body_type = task.get("body_type", "json").lower()
-        body_type_map = {"none": 0, "json": 1, "form": 2}
+        body_type_map = {"none": 0, "json": 1, "form": 2, "file": 3}
         self._body_type_combo.setCurrentIndex(body_type_map.get(body_type, 0))
+
+        # 恢复信号并手动触发一次UI更新
+        self._auth_type_combo.blockSignals(False)
+        self._body_type_combo.blockSignals(False)
+        self._on_auth_type_changed(self._auth_type_combo.currentIndex())
+        self._on_body_type_changed(self._body_type_combo.currentIndex())
 
         body = task.get("body", {})
         if isinstance(body, str):

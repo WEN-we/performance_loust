@@ -5,6 +5,8 @@
 运行状态实时刷新、多任务队列执行等功能，支持暗黑模式。
 """
 
+from functools import partial
+
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QColor
 from PySide6.QtCore import QModelIndex
@@ -201,9 +203,9 @@ class ExecuteTaskPage(QWidget):
         parent_layout.addLayout(table_header_layout)
 
         self._task_table = QTableWidget()
-        self._task_table.setColumnCount(6)
+        self._task_table.setColumnCount(7)
         self._task_table.setHorizontalHeaderLabels(
-            ["ID", "任务名称", "类型", "方法", "状态", "创建时间"]
+            ["ID", "任务名称", "类型", "方法", "状态", "操作", "创建时间"]
         )
         self._task_table.horizontalHeader().setStretchLastSection(True)
         self._task_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
@@ -213,9 +215,13 @@ class ExecuteTaskPage(QWidget):
         self._task_table.verticalHeader().setVisible(False)
         self._task_table.selectionModel().currentRowChanged.connect(self._on_task_selected)
 
-        column_widths = [50, 180, 80, 80, 100, 160]
+        column_widths = [50, 150, 60, 60, 70, 100, 120]
         for i, width in enumerate(column_widths):
             self._task_table.setColumnWidth(i, width)
+        # 操作列固定宽度，不随表格缩放而改变
+        self._task_table.horizontalHeader().setSectionResizeMode(5, self._task_table.horizontalHeader().ResizeMode.Fixed)
+        # 设置行高确保按钮完整显示
+        self._task_table.verticalHeader().setDefaultSectionSize(32)
 
         parent_layout.addWidget(self._task_table, 1)
 
@@ -389,9 +395,34 @@ class ExecuteTaskPage(QWidget):
                 status_item.setForeground(self._status_color(status))
                 self._task_table.setItem(row, 4, status_item)
 
+                # 操作列：编辑按钮
+                edit_btn = QPushButton("编辑")
+                edit_btn.setFixedHeight(26)
+                edit_btn.setFixedWidth(60)
+                # 使用显式样式覆盖全局样式，确保在深色主题下可见
+                edit_btn.setStyleSheet("""
+                    QPushButton {
+                        background-color: #5b9bd5;
+                        color: #ffffff;
+                        border: none;
+                        border-radius: 4px;
+                        padding: 2px 8px;
+                        font-size: 12px;
+                        font-weight: 500;
+                    }
+                    QPushButton:hover {
+                        background-color: #6baae0;
+                    }
+                    QPushButton:pressed {
+                        background-color: #4a8ac4;
+                    }
+                """)
+                edit_btn.clicked.connect(partial(self._edit_task, task_id))
+                self._task_table.setCellWidget(row, 5, edit_btn)
+
                 created_item = QTableWidgetItem(task.get("created_at", ""))
                 created_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                self._task_table.setItem(row, 5, created_item)
+                self._task_table.setItem(row, 6, created_item)
 
             self._refresh_running_status()
 
@@ -515,12 +546,15 @@ class ExecuteTaskPage(QWidget):
             get_logger("execute_task_page").exception("刷新队列状态失败")
 
     def _on_task_selected(self, current: QModelIndex, _previous: QModelIndex = None) -> None:
-        row = current.row() if current.isValid() else -1
         """任务列表选中行变更回调
 
+        根据选中的行号获取任务ID，更新详情区域和操作按钮状态。
+
         Args:
-            row: 选中的行号
+            current: 当前选中的模型索引
+            _previous: 之前选中的模型索引（未使用）
         """
+        row = current.row() if current.isValid() else -1
         if row < 0:
             self._selected_task_id = None
             self._update_button_states()
@@ -843,6 +877,32 @@ class ExecuteTaskPage(QWidget):
         for widget in self.findChildren(QLabel):
             if widget.text() in ("任务列表", "任务详情"):
                 widget.setStyleSheet(section_title_style)
+
+    def _edit_task(self, task_id: int) -> None:
+        """编辑指定任务（跳转到创建任务页面并预填参数）
+
+        Args:
+            task_id: 任务ID
+        """
+        from PySide6.QtCore import QTimer
+        # 先导航到创建任务页面（索引1）
+        self.navigate_requested.emit(1)
+        # 延迟让页面切换完成后再加载任务参数（300ms确保页面完全渲染）
+        QTimer.singleShot(300, lambda: self._load_task_into_create_page(task_id))
+
+    def _load_task_into_create_page(self, task_id: int) -> None:
+        """将任务数据加载到创建任务页面
+
+        Args:
+            task_id: 任务ID
+        """
+        try:
+            window = self.window()
+            if window and hasattr(window, "load_task_for_edit"):
+                window.load_task_for_edit(task_id)
+        except Exception:
+            from utils.logger import get_logger
+            get_logger("execute_task_page").exception("加载任务编辑数据失败")
 
     def cleanup(self) -> None:
         """清理资源，停止定时器"""

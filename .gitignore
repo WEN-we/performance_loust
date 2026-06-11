@@ -18,3 +18,19 @@ config/settings.json
 *.db
 *.sqlite3
 .env
+
+# 记忆系统和AI相关
+.workbuddy/
+ai_memory/
+logs/
+
+# 临时文件和备份
+*.bak
+*.tmp
+NUL
+fix_engine.py
+write_engine.py
+
+# 打包产物
+*.zip
+LocustPlatform_v1.*_Windows.zip

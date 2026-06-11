@@ -192,6 +192,20 @@ class MainWindow(QMainWindow):
             name = page_names[index] if index < len(page_names) else ""
             self._window_status_bar.showMessage(f"当前页面: {name}")
 
+    def load_task_for_edit(self, task_id: int) -> None:
+        """加载任务到创建任务页面进行编辑
+
+        Args:
+            task_id: 任务ID
+        """
+        try:
+            create_page = self._page_instances.get(1)
+            if create_page and hasattr(create_page, "load_task"):
+                create_page.load_task(task_id)
+                self._window_status_bar.showMessage(f"正在编辑任务 ID={task_id}")
+        except Exception as e:
+            logger.error("加载任务编辑数据失败: %s", e)
+
     def _toggle_theme(self) -> None:
         app = QApplication.instance()
         if app is None:
@@ -237,7 +251,7 @@ class MainWindow(QMainWindow):
         QMessageBox.about(
             self,
             "关于",
-            "Locust压力测试平台 v1.0.0\n\n"
+            "Locust压力测试平台 v1.0.2\n\n"
             "基于Locust的分布式压力测试工具\n"
             "提供可视化任务管理、实时监控与报告生成功能。",
         )

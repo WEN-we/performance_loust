@@ -55,6 +55,9 @@ class ExecutionService:
         self._queue_running = False
         self._queue_thread: threading.Thread | None = None
         self._queue_stop_event = threading.Event()
+        # 实时统计历史数据缓存，用于监控页面图表展示
+        # 格式: {task_id: [{"time": float, "qps": float, "rps": float, ...}, ...]}
+        self._stats_history: dict[int, list[dict[str, Any]]] = {}
 
     @classmethod
     def reset_instance(cls) -> None:
@@ -87,31 +90,30 @@ class ExecutionService:
             if task_id in self._engines and self._engines[task_id].is_running:
                 raise ValueError(f"任务已在运行中，ID: {task_id}")
 
-        engine_config = self._build_engine_config(task)
-        engine = LocustEngine(engine_config)
+            engine_config = self._build_engine_config(task)
+            engine = LocustEngine(engine_config)
 
-        result_data = {
-            "task_id": task_id,
-            "status": "running",
-            "start_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "current_users": task.get("users", 10),
-        }
-        result_id = self._db.create_task_result(result_data)
+            result_data = {
+                "task_id": task_id,
+                "status": "running",
+                "start_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "current_users": task.get("users", 10),
+            }
+            result_id = self._db.create_task_result(result_data)
 
-        engine.set_stats_callback(
-            lambda stats, tid=task_id, rid=result_id: self._on_stats_update(tid, rid, stats)
-        )
+            engine.set_stats_callback(
+                lambda stats, tid=task_id, rid=result_id: self._on_stats_update(tid, rid, stats)
+            )
 
-        success = engine.start()
-        if not success:
-            self._db.update_task_result(result_id, {
-                "status": "error",
-                "end_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            })
-            logger.error("启动任务失败，ID=%d", task_id)
-            return False
+            success = engine.start()
+            if not success:
+                self._db.update_task_result(result_id, {
+                    "status": "error",
+                    "end_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                })
+                logger.error("启动任务失败，ID=%d", task_id)
+                return False
 
-        with self._lock:
             self._engines[task_id] = engine
             self._result_ids[task_id] = result_id
 
@@ -135,6 +137,7 @@ class ExecutionService:
         """停止任务
 
         停止指定任务的Locust引擎，并将结果状态更新为stopped。
+        注意：先保存最终统计数据，再停止引擎，避免引擎清理后统计数据丢失。
 
         Args:
             task_id: 任务ID
@@ -149,12 +152,15 @@ class ExecutionService:
             logger.warning("任务未在运行中，无法停止，ID=%d", task_id)
             return False
 
+        # 先保存最终统计数据（引擎停止后统计数据会被清空）
+        self._save_final_results(task_id)
+
         success = engine.stop()
         if success:
-            self._save_final_results(task_id)
             with self._lock:
                 self._engines.pop(task_id, None)
                 self._result_ids.pop(task_id, None)
+                self._stats_history.pop(task_id, None)
             logger.info("停止任务成功，ID=%d", task_id)
         else:
             logger.warning("停止任务失败，ID=%d", task_id)
@@ -255,6 +261,18 @@ class ExecutionService:
             "stats": stats,
         }
 
+    def get_task_stats_history(self, task_id: int) -> list[dict[str, Any]]:
+        """获取任务的实时统计历史数据（供监控页面图表使用）
+
+        Args:
+            task_id: 任务ID
+
+        Returns:
+            时间序列数据点列表，每个点包含 time/qps/rps/tps/avg_response_time 等字段
+        """
+        with self._lock:
+            return list(self._stats_history.get(task_id, []))
+
     def execute_queue(self, task_ids: list[int]) -> bool:
         """多任务队列执行
 
@@ -348,13 +366,18 @@ class ExecutionService:
 
                 engine = self._engines.get(task_id)
                 if engine:
-                    engine.wait_for_complete()
+                    # 添加超时保护，防止引擎线程卡死导致队列永久阻塞
+                    completed = engine.wait_for_complete(timeout=3600)
+                    if not completed:
+                        logger.error("队列任务执行超时(3600s)，ID=%d，强制结束", task_id)
+                        engine.stop()
 
                 with self._lock:
                     if task_id in self._engines:
                         self._save_final_results(task_id)
                         self._engines.pop(task_id, None)
                         self._result_ids.pop(task_id, None)
+                        self._stats_history.pop(task_id, None)
 
                 logger.info("队列任务执行完成，ID=%d", task_id)
 
@@ -363,6 +386,7 @@ class ExecutionService:
                 with self._lock:
                     self._engines.pop(task_id, None)
                     self._result_ids.pop(task_id, None)
+                    self._stats_history.pop(task_id, None)
 
         with self._lock:
             self._queue_running = False
@@ -390,12 +414,14 @@ class ExecutionService:
                 self._save_final_results(task_id)
                 self._engines.pop(task_id, None)
                 self._result_ids.pop(task_id, None)
+                self._stats_history.pop(task_id, None)
 
     def _save_final_results(self, task_id: int) -> None:
         """保存任务最终执行结果到数据库
 
         从引擎获取最终统计数据，更新 task_results 记录，
         同时在 history 表中创建一条历史记录。
+        如果引擎已清理导致统计数据为空，会尝试保留数据库中已有的数据。
 
         Args:
             task_id: 任务ID
@@ -403,10 +429,30 @@ class ExecutionService:
         result_id = self._result_ids.get(task_id)
         engine = self._engines.get(task_id)
 
-        if result_id is None or engine is None:
+        if result_id is None:
             return
 
-        stats = engine.get_stats()
+        stats: dict[str, Any] = {}
+        if engine is not None:
+            stats = engine.get_stats()
+
+        # 如果引擎已清理导致统计数据为空，尝试从数据库获取之前保存的数据
+        if not stats or stats.get("total_requests", 0) == 0:
+            existing = self._db.get_task_result(result_id)
+            if existing:
+                existing_stats = existing.get("stats_json", {})
+                if isinstance(existing_stats, str):
+                    try:
+                        existing_stats = json.loads(existing_stats)
+                    except (json.JSONDecodeError, TypeError):
+                        existing_stats = {}
+                if existing_stats and existing_stats.get("total_requests", 0) > 0:
+                    stats = existing_stats
+                    logger.info(
+                        "引擎统计数据已清空，使用数据库中已有数据，任务ID=%d",
+                        task_id,
+                    )
+
         task = self._db.get_task(task_id)
         task_name = task.get("name", "") if task else ""
 
@@ -471,7 +517,8 @@ class ExecutionService:
     ) -> None:
         """实时统计回调
 
-        引擎定时回调，更新 task_results 中的实时统计数据。
+        引擎定时回调，更新 task_results 中的实时统计数据，
+        同时将数据点追加到内存历史缓存供监控页面图表使用。
 
         Args:
             task_id: 任务ID
@@ -486,6 +533,26 @@ class ExecutionService:
             rps_value = stats.get("rps", 0.0)
             elapsed = stats.get("elapsed_seconds", 0)
             tps_value = success_count / max(elapsed, 1) if success_count > 0 and elapsed > 0 else 0.0
+
+            # 缓存时间序列数据点供监控页面图表使用
+            history_point = {
+                "time": elapsed,
+                "qps": rps_value,
+                "rps": rps_value,
+                "tps": tps_value,
+                "avg_response_time": stats.get("avg_response_time", 0.0),
+                "max_response_time": stats.get("max_response_time", 0.0),
+                "p95_response_time": stats.get("p95_response_time", 0.0),
+                "fail_rate": fail_rate,
+                "user_count": stats.get("user_count", 0),
+            }
+            with self._lock:
+                if task_id not in self._stats_history:
+                    self._stats_history[task_id] = []
+                self._stats_history[task_id].append(history_point)
+                # 限制缓存大小，最多保留3600个点（约2小时 @ 2秒间隔）
+                if len(self._stats_history[task_id]) > 3600:
+                    self._stats_history[task_id] = self._stats_history[task_id][-3600:]
 
             update_data = {
                 "total_requests": total_requests,

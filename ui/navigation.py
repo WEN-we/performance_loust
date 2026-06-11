@@ -223,7 +223,7 @@ class NavigationBar(QWidget):
 
         main_layout.addStretch()
 
-        self._version_label = QLabel("v1.0.0")
+        self._version_label = QLabel("v1.0.2")
         self._version_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._version_label.setStyleSheet("color: #b0b0c0; font-size: 11px;")
         main_layout.addWidget(self._version_label)

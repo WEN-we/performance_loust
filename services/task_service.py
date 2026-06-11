@@ -30,7 +30,7 @@ class TaskService:
 
     VALID_TASK_TYPES = {"HTTP", "HTTPS", "WebSocket"}
     VALID_METHODS = {"GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS", "WEBSOCKET"}
-    VALID_BODY_TYPES = {"json", "form", "xml", "raw", "none"}
+    VALID_BODY_TYPES = {"json", "form", "xml", "raw", "none", "file"}
 
     def __init__(self, db: DatabaseManager | None = None) -> None:
         """初始化任务管理服务
@@ -275,6 +275,7 @@ class TaskService:
         task_id: int | None = None,
         encoding: str = "utf-8",
         delimiter: str = ",",
+        max_rows: int | None = None,
     ) -> list[dict[str, str]]:
         """导入CSV数据
 
@@ -286,6 +287,7 @@ class TaskService:
             task_id: 关联的任务ID，为None时不更新任务
             encoding: 文件编码
             delimiter: 分隔符
+            max_rows: 最大读取行数，为None时读取所有行
 
         Returns:
             CSV数据行列表，每行为字典
@@ -301,7 +303,9 @@ class TaskService:
         rows: list[dict[str, str]] = []
         with open(csv_path, "r", encoding=encoding, newline="") as f:
             reader = csv.DictReader(f, delimiter=delimiter)
-            for row in reader:
+            for i, row in enumerate(reader):
+                if max_rows is not None and i >= max_rows:
+                    break
                 rows.append(dict(row))
 
         if not rows:
@@ -358,7 +362,7 @@ class TaskService:
             errors.append("并发用户数必须为大于0的数字")
 
         spawn_rate = task_data.get("spawn_rate", 1)
-        if not isinstance(spawn_rate, (int, float)) or spawn_rate < 1:
+        if not isinstance(spawn_rate, (int, float)) or spawn_rate <= 0:
             errors.append("用户生成速率必须为大于0的数字")
 
         run_time = task_data.get("run_time", "5m")
@@ -368,8 +372,8 @@ class TaskService:
                 errors.append(f"运行时间格式错误: {run_time}，应为如 10s/5m/1h/1h30m 的格式")
 
         timeout = task_data.get("timeout", 30)
-        if not isinstance(timeout, (int, float)) or timeout < 0:
-            errors.append("超时时间不能为负数")
+        if not isinstance(timeout, (int, float)) or timeout <= 0:
+            errors.append("超时时间必须为大于0的数字")
 
         retry_count = task_data.get("retry_count", 0)
         if not isinstance(retry_count, int) or retry_count < 0:

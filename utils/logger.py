@@ -93,12 +93,14 @@ def get_logger(name: str = "performance_loust") -> logging.Logger:
 
     if _initialized:
         parent = _loggers.get("performance_loust")
-        if parent:
+        if parent is not None:
             child = logging.getLogger(f"performance_loust.{name}")
             child.setLevel(parent.level)
             child.propagate = True
             _loggers[name] = child
             return child
+        # 已初始化但找不到父logger（极端情况），fallback到直接设置
+        return setup_logger(name)
 
     return setup_logger(name)
 

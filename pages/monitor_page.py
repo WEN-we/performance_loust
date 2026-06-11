@@ -644,8 +644,11 @@ class MonitorPage(QWidget):
                 self, "选择监控任务", "没有正在运行的任务，可选择任意任务：", items, 0, False
             )
             if ok and item:
-                task_id = int(item.split(":")[1].split(" - ")[0])
-                self._set_monitoring_task(task_id)
+                import re
+                m = re.match(r"ID:(\d+)", item)
+                if m:
+                    task_id = int(m.group(1))
+                    self._set_monitoring_task(task_id)
             return
 
         items = [f"ID:{t.get('id')} - {t.get('name', '')} [运行中]" for t in running_tasks]
@@ -653,8 +656,11 @@ class MonitorPage(QWidget):
             self, "选择监控任务", "选择要监控的运行中任务：", items, 0, False
         )
         if ok and item:
-            task_id = int(item.split(":")[1].split(" - ")[0])
-            self._set_monitoring_task(task_id)
+            import re
+            m = re.match(r"ID:(\d+)", item)
+            if m:
+                task_id = int(m.group(1))
+                self._set_monitoring_task(task_id)
 
     def _set_monitoring_task(self, task_id: int) -> None:
         self._monitoring_task_id = task_id
@@ -750,22 +756,50 @@ class MonitorPage(QWidget):
                 self._card_fail.set_value(str(total_failures))
                 self._card_elapsed.set_value(f"{self._elapsed_seconds:.0f}")
 
-                self._chart_qps_tps_rps.append_data(
-                    self._elapsed_seconds,
-                    {"QPS": qps, "TPS": tps, "RPS": rps},
-                )
-                self._chart_response_time.append_data(
-                    self._elapsed_seconds,
-                    {"平均": avg_rt, "最大": max_rt, "95%": p95_rt},
-                )
-                self._chart_fail_rate.append_data(
-                    self._elapsed_seconds,
-                    {"失败率": fail_rate * 100},
-                )
-                self._chart_users.append_data(
-                    self._elapsed_seconds,
-                    {"在线用户": user_count},
-                )
+                # 优先使用内存中的历史数据绘制图表（数据点更密集）
+                history = self._execution_service.get_task_stats_history(self._monitoring_task_id)
+                if history and len(history) > 1:
+                    # 使用历史数据重绘整个图表
+                    self._chart_qps_tps_rps.clear_data()
+                    self._chart_response_time.clear_data()
+                    self._chart_fail_rate.clear_data()
+                    self._chart_users.clear_data()
+                    for point in history:
+                        t = point.get("time", 0)
+                        self._chart_qps_tps_rps.append_data(
+                            t,
+                            {"QPS": point.get("qps", 0), "TPS": point.get("tps", 0), "RPS": point.get("rps", 0)},
+                        )
+                        self._chart_response_time.append_data(
+                            t,
+                            {"平均": point.get("avg_response_time", 0), "最大": max_rt, "95%": point.get("p95_response_time", 0)},
+                        )
+                        self._chart_fail_rate.append_data(
+                            t,
+                            {"失败率": point.get("fail_rate", 0) * 100},
+                        )
+                        self._chart_users.append_data(
+                            t,
+                            {"在线用户": point.get("user_count", 0)},
+                        )
+                else:
+                    # 回退到单点追加模式
+                    self._chart_qps_tps_rps.append_data(
+                        self._elapsed_seconds,
+                        {"QPS": qps, "TPS": tps, "RPS": rps},
+                    )
+                    self._chart_response_time.append_data(
+                        self._elapsed_seconds,
+                        {"平均": avg_rt, "最大": max_rt, "95%": p95_rt},
+                    )
+                    self._chart_fail_rate.append_data(
+                        self._elapsed_seconds,
+                        {"失败率": fail_rate * 100},
+                    )
+                    self._chart_users.append_data(
+                        self._elapsed_seconds,
+                        {"在线用户": user_count},
+                    )
             else:
                 self._update_status_label(engine_state, db_status)
 
@@ -811,9 +845,11 @@ class MonitorPage(QWidget):
                 self._card_fail.set_value(str(fail_count))
                 self._card_elapsed.set_value(f"{elapsed_seconds:.0f}")
 
-                if not self._history_chart_loaded and elapsed_seconds > 0:
+                if not self._history_chart_loaded:
+                    # 使用实际耗时加载历史图表，若无法计算则使用默认值
+                    display_elapsed = elapsed_seconds if elapsed_seconds > 0 else 60.0
                     self._load_history_chart_data(
-                        elapsed_seconds, rps_val, tps_val, avg_rt,
+                        display_elapsed, rps_val, tps_val, avg_rt,
                         max_rt, p95_rt, fail_rate, user_count,
                     )
                     self._history_chart_loaded = True
